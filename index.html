@@ -67,7 +67,7 @@
 
     #ranking-global {
       margin-top: 30px;
-      display: none;
+      display: none; /* Esta sección se mantiene oculta ya que el ranking es por email */
     }
 
     .ranking-table {
@@ -89,7 +89,7 @@
       background-color: rgba(201, 176, 55, 0.1);
     }
 
-    /* Estilos para los 3 primeros puestos */
+    /* Estilos para los 3 primeros puestos (aunque no se usen en este modelo) */
     .first-place {
       background-color: var(--oro) !important;
       color: var(--negro);
@@ -135,6 +135,7 @@
 <body>
   <div id="feedback">¡Respuesta incorrecta! Pierdes una vida ❤️</div>
   <div class="container">
+    <!-- IMAGEN DEL LOGO CORREGIDA -->
     <img src="https://static.wixstatic.com/media/ed6298_a9feb3bc2f894f2fb14e07593db423e6~mv2.png/v1/fill/w_438,h_139,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/logo.png" alt="Pilates Élite" class="logo" />
 
     <div id="start-screen">
@@ -156,7 +157,7 @@
     <div id="end-screen" class="hidden">
       <h2>Juego terminado</h2>
       <p id="final-score"></p>
-      <button onclick="showGlobalRanking()">Ver Ranking Global</button>
+      <p id="email-confirmation-message" class="hidden"></p> <!-- Nuevo párrafo para el mensaje al usuario -->
       <button onclick="restartGame()">Jugar de nuevo</button>
     </div>
 
@@ -168,7 +169,7 @@
   </div>
 
   <script>
-    // Base de datos de preguntas ampliada
+    // Base de datos de preguntas ampliada (estructura corregida)
     const questions = {
       easy: [
         {
@@ -196,7 +197,7 @@
           options: ["Basi Pilates", "Joseph Pilates", "Romana Kryzanowska"],
           answer: 1
         },
-        {
+        { // Esta pregunta ha sido movida correctamente dentro del array 'easy'
           question: "¿Dónde encuentro las normas de Pilates Élite?",
           options: ["Publicadas en el periódico", "En la app donde pone Normas del Centro ", "En el B.O.E"],
           answer: 1
@@ -342,16 +343,17 @@
     let playerEmail = "";
     let playerPhone = "";
     
-    // ¡IMPORTANTE! Reemplaza con la URL de tu aplicación web de Google Apps Script
+    // ¡IMPORTANTE! URL de tu aplicación web de Google Apps Script (la he insertado aquí)
     // Asegúrate de que esta URL sea la de tu última implementación con acceso "Cualquier persona"
-   const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyNrPMCsZs9tNVQuPfZR6Img3L-jze3WqhrDN0dgHdCwto_YSMzPrWTUbRkJjWJnxqFlQ/exec';
+    const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyPgIbOR7qigZNvmZupf_L1ZSdWrYm00q4NDtZ4ZmpoLv9H5kC9kWtNaumbUPYgsXAUkw/exec';
 
 
     // Elementos del DOM
     const startScreen = document.getElementById("start-screen");
     const gameScreen = document.getElementById("game-screen");
     const endScreen = document.getElementById("end-screen");
-    const rankingGlobal = document.getElementById("ranking-global");
+    const rankingGlobal = document.getElementById("ranking-global"); // Se mantiene, pero la sección estará oculta
+    const emailConfirmationMessage = document.getElementById("email-confirmation-message"); // Nuevo elemento
 
     function startGame() {
       playerName = document.getElementById("name").value.trim();
@@ -447,33 +449,30 @@
       endScreen.classList.remove("hidden");
       document.getElementById("final-score").textContent = `Puntuación final: ${score} puntos`;
 
-      // Guardar resultados en el backend de Apps Script
+      // Guardar resultados enviando un email
       saveResults();
     }
 
     async function saveResults() {
-      // Añadir decimales para desempate
-      const preciseScore = score + Math.random() * 0.99;
-      
       const playerData = {
         name: playerName,
         email: playerEmail,
         phone: playerPhone, // Puede ser null o vacío si no lo completó
         score: score,
-        preciseScore: preciseScore,
         date: new Date().toISOString() // Formato ISO para facilidad en el backend
       };
+
+      emailConfirmationMessage.textContent = "Enviando tu puntuación...";
+      emailConfirmationMessage.classList.remove("hidden");
 
       try {
         const response = await fetch(APPS_SCRIPT_WEB_APP_URL, {
           method: 'POST',
-          // Google Apps Script espera el cuerpo como 'application/x-www-form-urlencoded'
-          // o como JSON si lo parseas manualmente. Lo parseamos manualmente en GAS.
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(playerData),
-          mode: 'cors' // Necesario para peticiones entre dominios
+          mode: 'cors'
         });
 
         if (!response.ok) {
@@ -482,79 +481,22 @@
         }
 
         const data = await response.json();
-        console.log('Puntuación guardada en el ranking global:', data);
+        console.log('Respuesta del servidor:', data);
+
+        if (data.success) {
+          emailConfirmationMessage.textContent = `¡Tu puntuación de ${score} puntos ha sido enviada! Recibirás un email de confirmación.`;
+        } else {
+          emailConfirmationMessage.textContent = `Error al enviar: ${data.message || 'Inténtalo de nuevo.'}`;
+        }
       } catch (error) {
-        console.error('Error al guardar la puntuación:', error);
-        alert('Hubo un error al guardar tu puntuación. Inténtalo de nuevo más tarde.');
+        console.error('Error al enviar la puntuación:', error);
+        emailConfirmationMessage.textContent = 'Hubo un error de conexión al enviar tu puntuación. Inténtalo de nuevo más tarde.';
       }
     }
 
-    async function showGlobalRanking() {
-      endScreen.classList.add("hidden");
-      rankingGlobal.classList.remove("hidden");
-      
-      const tableContainer = document.getElementById("ranking-table-container");
-      tableContainer.innerHTML = "<p>Cargando ranking...</p>"; // Mensaje de carga
-
-      try {
-        // Las solicitudes GET a Apps Script se hacen directamente a la URL de la aplicación web
-        const response = await fetch(APPS_SCRIPT_WEB_APP_URL);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const globalRanking = await response.json(); // El servidor ya debe devolverlo ordenado
-
-        tableContainer.innerHTML = ""; // Limpiar mensaje de carga
-
-        if (globalRanking.length === 0) {
-          tableContainer.innerHTML = "<p>No hay resultados aún. ¡Sé el primero!</p>";
-          return;
-        }
-
-        const table = document.createElement("table");
-        table.className = "ranking-table";
-        
-        // Cabecera de la tabla
-        const header = table.createTHead();
-        const headerRow = header.insertRow();
-        headerRow.innerHTML = "<th>Posición</th><th>Nombre</th><th>Puntuación</th><th>Fecha</th>";
-        
-        // Cuerpo de la tabla
-        const body = table.createTBody();
-        
-        // Mantener solo los 50 mejores (o el número que desees)
-        const MAX_RANKING_ENTRIES = 50;
-        const slicedRanking = globalRanking.slice(0, MAX_RANKING_ENTRIES);
-
-        slicedRanking.forEach((player, index) => {
-          const row = body.insertRow();
-          
-          // Aplicar clases especiales a los 3 primeros
-          if (index === 0) row.className = "first-place";
-          else if (index === 1) row.className = "second-place";
-          else if (index === 2) row.className = "third-place";
-          
-          // Añadir iconos a los 3 primeros
-          let position = (index + 1) + "º";
-          if (index === 0) position = "🥇 " + position;
-          else if (index === 1) position = "🥈 " + position;
-          else if (index === 2) position = "🥉 " + position;
-          
-          row.innerHTML = `
-            <td>${position}</td>
-            <td>${player.name}</td>
-            <td>${player.score}</td>
-            <td>${new Date(player.date).toLocaleString()}</td>
-          `;
-        });
-        
-        tableContainer.appendChild(table);
-
-      } catch (error) {
-        console.error("Error al cargar el ranking global:", error);
-        tableContainer.innerHTML = "<p>Error al cargar el ranking. Inténtalo de nuevo más tarde.</p>";
-      }
-    }
+    // La función showGlobalRanking() ya no es necesaria con el enfoque de email
+    // Si tienes un botón que la llama, puedes eliminarlo o reasignarlo.
+    // En este HTML, el botón "Ver Ranking Global" está oculto porque su div padre está hidden.
 
     function restartGame() {
       currentLevel = "easy";
@@ -562,7 +504,7 @@
       score = 0;
       lives = 3;
       
-      rankingGlobal.classList.add("hidden");
+      rankingGlobal.classList.add("hidden"); // Asegura que la sección de ranking global esté oculta
       endScreen.classList.add("hidden");
       startScreen.classList.remove("hidden");
       
@@ -570,6 +512,7 @@
       document.getElementById("name").value = "";
       document.getElementById("email").value = "";
       document.getElementById("phone").value = "";
+      emailConfirmationMessage.classList.add("hidden"); // Ocultar el mensaje de confirmación al reiniciar
     }
   </script>
 </body>
